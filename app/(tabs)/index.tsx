@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 export default function HomeScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>TrackYourFett</Text>
+      <Text style={styles.title}>Track Your Fat</Text>
 
       <Text style={styles.subtitle}>
         Checke deine Ernährung per Kamera statt Kalorien manuell zu zählen.

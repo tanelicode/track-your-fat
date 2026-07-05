@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "track-your-fett",
-    "slug": "track-your-fett",
+    "name": "Track Your Fat",
+    "slug": "track-your-fat",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "trackyourfett",
+    "scheme": "trackyourfat",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
