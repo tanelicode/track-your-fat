@@ -1,11 +1,16 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { router } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 
@@ -20,6 +25,20 @@ type Product = {
   };
 };
 
+type FoodLogItem = {
+  id: string;
+  productName: string;
+  brand?: string;
+  grams: number;
+  kcal: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  createdAt: string;
+};
+
+const STORAGE_KEY = "today_food_logs";
+
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -27,6 +46,7 @@ export default function ScannerScreen() {
   const [loading, setLoading] = useState(false);
   const [product, setProduct] = useState<Product | null>(null);
   const [error, setError] = useState("");
+  const [grams, setGrams] = useState("100");
 
   async function fetchProductByBarcode(barcode: string) {
     try {
@@ -59,6 +79,68 @@ export default function ScannerScreen() {
     await fetchProductByBarcode(result.data);
   }
 
+  function getAmount() {
+    return Number(grams.replace(",", ".")) || 0;
+  }
+
+  function calculateValue(valuePer100g?: number) {
+    const amount = getAmount();
+
+    if (!valuePer100g || !amount) {
+      return 0;
+    }
+
+    return Math.round((valuePer100g * amount) / 100);
+  }
+
+  function calculateMacro(valuePer100g?: number) {
+    const amount = getAmount();
+
+    if (!valuePer100g || !amount) {
+      return 0;
+    }
+
+    return Math.round(((valuePer100g * amount) / 100) * 10) / 10;
+  }
+
+  async function addToTodayLog() {
+    if (!product) return;
+
+    const amount = getAmount();
+
+    if (amount <= 0) {
+      Alert.alert("Fehler", "Bitte gib eine gültige Menge in Gramm ein.");
+      return;
+    }
+
+    const nutriments = product.nutriments ?? {};
+
+    const newItem: FoodLogItem = {
+      id: Date.now().toString(),
+      productName: product.product_name || "Unbekanntes Produkt",
+      brand: product.brands,
+      grams: amount,
+      kcal: calculateValue(nutriments["energy-kcal_100g"]),
+      protein: calculateMacro(nutriments.proteins_100g),
+      carbs: calculateMacro(nutriments.carbohydrates_100g),
+      fat: calculateMacro(nutriments.fat_100g),
+      createdAt: new Date().toISOString(),
+    };
+
+    const existingData = await AsyncStorage.getItem(STORAGE_KEY);
+    const existingItems: FoodLogItem[] = existingData
+      ? JSON.parse(existingData)
+      : [];
+
+    const updatedItems = [newItem, ...existingItems];
+
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedItems));
+
+    Alert.alert("Gespeichert", "Produkt wurde zur Tagesübersicht hinzugefügt.");
+
+    router.back();
+  }
+
   if (!permission) {
     return (
       <View style={styles.center}>
@@ -88,8 +170,21 @@ export default function ScannerScreen() {
   if (product) {
     const nutriments = product.nutriments ?? {};
 
+    const kcal100g = nutriments["energy-kcal_100g"];
+    const protein100g = nutriments.proteins_100g;
+    const carbs100g = nutriments.carbohydrates_100g;
+    const fat100g = nutriments.fat_100g;
+
+    const totalKcal = calculateValue(kcal100g);
+    const totalProtein = calculateMacro(protein100g);
+    const totalCarbs = calculateMacro(carbs100g);
+    const totalFat = calculateMacro(fat100g);
+
     return (
-      <View style={styles.resultContainer}>
+      <KeyboardAvoidingView
+        style={styles.resultContainer}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
         <Text style={styles.title}>Produkt erkannt</Text>
 
         <Text style={styles.productName}>
@@ -100,39 +195,48 @@ export default function ScannerScreen() {
           <Text style={styles.brand}>{product.brands}</Text>
         ) : null}
 
-        <View style={styles.card}>
-          <Text style={styles.row}>
-            Kalorien: {nutriments["energy-kcal_100g"] ?? "?"} kcal / 100g
-          </Text>
+        <View style={styles.inputCard}>
+          <Text style={styles.label}>Menge in Gramm</Text>
 
-          <Text style={styles.row}>
-            Eiweiß: {nutriments.proteins_100g ?? "?"} g / 100g
-          </Text>
-
-          <Text style={styles.row}>
-            Kohlenhydrate: {nutriments.carbohydrates_100g ?? "?"} g / 100g
-          </Text>
-
-          <Text style={styles.row}>
-            Fett: {nutriments.fat_100g ?? "?"} g / 100g
-          </Text>
+          <TextInput
+            style={styles.input}
+            value={grams}
+            onChangeText={setGrams}
+            keyboardType="decimal-pad"
+            placeholder="z. B. 250"
+          />
         </View>
 
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Deine Portion</Text>
+
+          <Text style={styles.bigResult}>{totalKcal} kcal</Text>
+
+          <Text style={styles.row}>Eiweiß: {totalProtein} g</Text>
+          <Text style={styles.row}>Kohlenhydrate: {totalCarbs} g</Text>
+          <Text style={styles.row}>Fett: {totalFat} g</Text>
+        </View>
+
+        <Pressable style={styles.button} onPress={addToTodayLog}>
+          <Text style={styles.buttonText}>Zur Tagesübersicht hinzufügen</Text>
+        </Pressable>
+
         <Pressable
-          style={styles.button}
+          style={styles.secondaryButton}
           onPress={() => {
             setProduct(null);
             setScanned(false);
             setError("");
+            setGrams("100");
           }}
         >
-          <Text style={styles.buttonText}>Neues Produkt scannen</Text>
+          <Text>Neues Produkt scannen</Text>
         </Pressable>
 
         <Pressable style={styles.secondaryButton} onPress={() => router.back()}>
           <Text>Zurück</Text>
         </Pressable>
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -238,19 +342,53 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     textAlign: "center",
-    marginBottom: 24,
+    marginBottom: 18,
+  },
+
+  inputCard: {
+    backgroundColor: "#fff",
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 14,
+  },
+
+  label: {
+    fontSize: 14,
+    color: "#555",
+    marginBottom: 8,
+  },
+
+  input: {
+    borderWidth: 1,
+    borderColor: "#ddd",
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 18,
+    backgroundColor: "#fff",
   },
 
   card: {
     backgroundColor: "#fff",
-    padding: 20,
+    padding: 18,
     borderRadius: 16,
-    marginVertical: 24,
+    marginBottom: 14,
+  },
+
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+
+  bigResult: {
+    fontSize: 32,
+    fontWeight: "800",
+    marginBottom: 12,
   },
 
   row: {
     fontSize: 16,
-    marginBottom: 10,
+    marginBottom: 8,
   },
 
   button: {
@@ -259,7 +397,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 12,
     alignItems: "center",
-    marginTop: 12,
+    marginTop: 8,
   },
 
   buttonText: {
@@ -271,7 +409,7 @@ const styles = StyleSheet.create({
   secondaryButton: {
     padding: 14,
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 6,
   },
 
   error: {
