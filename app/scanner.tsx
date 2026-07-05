@@ -5,12 +5,14 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
 
@@ -106,6 +108,8 @@ export default function ScannerScreen() {
   async function addToTodayLog() {
     if (!product) return;
 
+    Keyboard.dismiss();
+
     const amount = getAmount();
 
     if (amount <= 0) {
@@ -181,62 +185,99 @@ export default function ScannerScreen() {
     const totalFat = calculateMacro(fat100g);
 
     return (
-      <KeyboardAvoidingView
-        style={styles.resultContainer}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <Text style={styles.title}>Produkt erkannt</Text>
-
-        <Text style={styles.productName}>
-          {product.product_name || "Unbekanntes Produkt"}
-        </Text>
-
-        {product.brands ? (
-          <Text style={styles.brand}>{product.brands}</Text>
-        ) : null}
-
-        <View style={styles.inputCard}>
-          <Text style={styles.label}>Menge in Gramm</Text>
-
-          <TextInput
-            style={styles.input}
-            value={grams}
-            onChangeText={setGrams}
-            keyboardType="decimal-pad"
-            placeholder="z. B. 250"
-          />
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Deine Portion</Text>
-
-          <Text style={styles.bigResult}>{totalKcal} kcal</Text>
-
-          <Text style={styles.row}>Eiweiß: {totalProtein} g</Text>
-          <Text style={styles.row}>Kohlenhydrate: {totalCarbs} g</Text>
-          <Text style={styles.row}>Fett: {totalFat} g</Text>
-        </View>
-
-        <Pressable style={styles.button} onPress={addToTodayLog}>
-          <Text style={styles.buttonText}>Zur Tagesübersicht hinzufügen</Text>
-        </Pressable>
-
-        <Pressable
-          style={styles.secondaryButton}
-          onPress={() => {
-            setProduct(null);
-            setScanned(false);
-            setError("");
-            setGrams("100");
-          }}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+        <KeyboardAvoidingView
+          style={styles.resultContainer}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <Text>Neues Produkt scannen</Text>
-        </Pressable>
+          <Text style={styles.title}>Produkt erkannt</Text>
 
-        <Pressable style={styles.secondaryButton} onPress={() => router.back()}>
-          <Text>Zurück</Text>
-        </Pressable>
-      </KeyboardAvoidingView>
+          <Text style={styles.productName}>
+            {product.product_name || "Unbekanntes Produkt"}
+          </Text>
+
+          {product.brands ? (
+            <Text style={styles.brand}>{product.brands}</Text>
+          ) : null}
+
+          <View style={styles.inputCard}>
+            <Text style={styles.label}>Menge in Gramm</Text>
+
+            <TextInput
+              style={styles.input}
+              value={grams}
+              onChangeText={setGrams}
+              keyboardType="decimal-pad"
+              placeholder="z. B. 250"
+              returnKeyType="done"
+              blurOnSubmit={true}
+              onSubmitEditing={Keyboard.dismiss}
+            />
+
+            <View style={styles.amountGrid}>
+              {["50", "100", "150", "200", "250", "500"].map((amount) => (
+                <Pressable
+                  key={amount}
+                  style={[
+                    styles.amountButton,
+                    grams === amount && styles.amountButtonActive,
+                  ]}
+                  onPress={() => {
+                    setGrams(amount);
+                    Keyboard.dismiss();
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.amountButtonText,
+                      grams === amount && styles.amountButtonTextActive,
+                    ]}
+                  >
+                    {amount}g
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Deine Portion</Text>
+
+            <Text style={styles.bigResult}>{totalKcal} kcal</Text>
+
+            <Text style={styles.row}>Eiweiß: {totalProtein} g</Text>
+            <Text style={styles.row}>Kohlenhydrate: {totalCarbs} g</Text>
+            <Text style={styles.row}>Fett: {totalFat} g</Text>
+          </View>
+
+          <Pressable style={styles.button} onPress={addToTodayLog}>
+            <Text style={styles.buttonText}>Zur Tagesübersicht hinzufügen</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.secondaryButton}
+            onPress={() => {
+              Keyboard.dismiss();
+              setProduct(null);
+              setScanned(false);
+              setError("");
+              setGrams("100");
+            }}
+          >
+            <Text>Neues Produkt scannen</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.secondaryButton}
+            onPress={() => {
+              Keyboard.dismiss();
+              router.back();
+            }}
+          >
+            <Text>Zurück</Text>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
     );
   }
 
@@ -365,6 +406,34 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 18,
     backgroundColor: "#fff",
+  },
+
+  amountGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  },
+
+  amountButton: {
+    backgroundColor: "#eee",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+  },
+
+  amountButtonActive: {
+    backgroundColor: "#111",
+  },
+
+  amountButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111",
+  },
+
+  amountButtonTextActive: {
+    color: "#fff",
   },
 
   card: {
